@@ -22,6 +22,21 @@ var operators = [
   'endsWith'
 ];
 
+var UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function looksLikeUuid(val) {
+  return typeof val === 'string' && UUID_RE.test(val);
+}
+function someLookLikeUuid(value) {
+  if (Array.isArray(value)) {
+    if (value.length === 0) return false;
+    for (var i = 0; i < value.length; i++) {
+      if (looksLikeUuid(value[i])) return true;
+    }
+    return false;
+  }
+  return looksLikeUuid(value);
+}
+
 /**
  * Process Criteria
  *
@@ -307,7 +322,9 @@ CriteriaProcessor.prototype._in = function _in(key, val) {
     schema = { type: schema };
   }
 
-  if(schema && schema.type === 'text' || schema.type === 'string') {
+  var isUUID = schema && (schema.type === 'text' || schema.type === 'string') && someLookLikeUuid(val);
+
+  if(!isUUID && schema && (schema.type === 'text' || schema.type === 'string')) {
     caseSensitivity = false;
     lower = true;
   }
@@ -442,7 +459,9 @@ CriteriaProcessor.prototype.processSimple = function processSimple (tableName, p
   // Check if value is a string and if so add LOWER logic
   // to work with case in-sensitive queries
 
-  if(!sensitive && lower && _.isString(value)) {
+  var isUUID = _.isString(value) && someLookLikeUuid(value);
+
+  if(!sensitive && lower && _.isString(value) && !isUUID) {
     // Add LOWER to parent
     parent = this.buildParam(this.getTableAlias(), parent, true);
     value = value.toLowerCase();
@@ -553,7 +572,8 @@ CriteriaProcessor.prototype.processObject = function processObject (tableName, p
 
       // Check if value is a string and if so add LOWER logic
       // to work with case in-sensitive queries
-      self.queryString += self.buildParam(self.getTableAlias(), parent, !sensitive && _.isString(obj[key]) && lower) + ' ';
+      var isUUID = _.isString(obj[key]) && someLookLikeUuid(obj[key]);
+      self.queryString += self.buildParam(self.getTableAlias(), parent, !sensitive && _.isString(obj[key]) && lower && !isUUID) + ' ';
       self.prepareCriterion(key, obj[key]);
       self.queryString += ' AND ';
     });
